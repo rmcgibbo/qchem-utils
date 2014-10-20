@@ -720,14 +720,6 @@ class Molecule(object):
             File type, corresponding to an entry in the internal table of known
             file types.  Provide this if you have a nonstandard file extension
             or if you wish to force to invoke a particular parser.
-        build_topology : bool, optional
-            Build the molecular topology consisting of: topology (overall connectivity graph),
-            molecules (list of connected subgraphs), bonds (if not explicitly read in), default True
-        toppbc : bool, optional
-            Use periodic boundary conditions when building the molecular topology, default False
-            The build_topology code will attempt to determine this intelligently.
-        topframe : int, optional
-            Provide a frame number for building the molecular topology, default first frame
         Fac : float, optional
             Multiplicative factor to covalent radii criterion for deciding whether two atoms are bonded
             Default value of 1.2 is reasonable, 1.4 will produce lots of bonds
@@ -782,10 +774,9 @@ class Molecule(object):
         self.positive_resid = kwargs.get('positive_resid', 0)
         self.built_bonds = False
         # Topology settings
-        self.top_settings = {'toppbc': kwargs.get('toppbc', False),
-                             'topframe': kwargs.get('topframe', 0),
-                             'Fac': kwargs.get('Fac', 1.2),
-                             'read_bonds': False}
+        self.top_settings = {
+            'Fac': kwargs.get('Fac', 1.2),
+            'read_bonds': False}
 
         for i in set(self.Read_Tab.keys() + self.Write_Tab.keys()):
             self.Funnel[i] = i
@@ -814,9 +805,6 @@ class Molecule(object):
                     fnm, i + 1, self.ns) for i in range(self.ns)]
             else:
                 self.comms = [i.expandtabs() for i in self.comms]
-            # Build the topology.
-            if kwargs.get('build_topology', True) and hasattr(self, 'elem') and self.na > 0:
-                self.build_topology(force_bonds=False)
 
     #=====================================#
     #|     Core read/write functions     |#
@@ -971,7 +959,6 @@ class Molecule(object):
             New.Data['bonds'] = [(list(atomslice).index(b[0]), list(atomslice).index(
                 b[1])) for b in self.bonds if (b[0] in atomslice and b[1] in atomslice)]
         New.top_settings = self.top_settings
-        New.build_topology(force_bonds=False)
         return New
 
     def atom_stack(self, other):
@@ -1037,7 +1024,7 @@ class Molecule(object):
 
     def load_popxyz(self, fnm):
         """ Given a charge-spin xyz file, load the charges (x-coordinate) and spins (y-coordinate) into internal arrays. """
-        QS = Molecule(fnm, ftype='xyz', build_topology=False)
+        QS = Molecule(fnm, ftype='xyz')
         self.qm_mulliken_charges = list(np.array(QS.xyzs)[:, :, 0])
         self.qm_mulliken_spins = list(np.array(QS.xyzs)[:, :, 1])
 
