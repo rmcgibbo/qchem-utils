@@ -337,7 +337,7 @@ class QChem(object):
                 raise RuntimeError('Must provide charge/mult/method/basis!')
             # Print a Q-Chem template file.
             with open('.qtemp.in','w') as f: print >> f, \
-                    qcrem_default.format(chg=charge, mult=mult, method=method, basis=(basisname + '\necp                 %s' % (ecpname if ecp != None else '')))
+                    qcrem_default.format(chg=charge, mult=mult, method=method, basis=(basisname + '%s' % (('\necp                 %s' % ecpname) if ecp != None else '')))
             # Print general basis and ECP sections to the Q-Chem template file.
             if basisname == 'gen':
                 with open('.qtemp.in','a') as f:
