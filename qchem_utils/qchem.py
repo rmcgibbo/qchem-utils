@@ -150,14 +150,6 @@ def tarexit(exitstat=0):
         os.remove(f)
     # Expand each term in "exclude" and remove from the list of files.
     excludes = sum([glob.glob(g) for g in tarexit.exclude], [])
-    # Files ending in .log are never deleted
-    if tarexit.remove_files:
-        saved = [f for f in sum([glob.glob(g) for g in tarexit.save], []) if f in include_files]
-        if not os.path.exists('saved'):
-            os.makedirs('saved')
-        for f in saved:
-            shutil.copy2(f, 'saved/%s' % f)
-    # Actually execute the tar command.
     # If the tar file exists, then extract / delete it.
     if os.path.exists(tarexit.tarfnm):
         _exec("tar xjf %s --skip-old-files" % tarexit.tarfnm, print_command=True)
@@ -172,6 +164,14 @@ def tarexit(exitstat=0):
             # 3) Either archive_dirs is set or path is not a folder
             if f not in include_files and f not in excludes and (tarexit.archive_dirs or (not os.path.isdir(f))):
                 include_files.append(f)
+    # Files ending in .log are never deleted
+    if tarexit.remove_files:
+        saved = [f for f in sum([glob.glob(g) for g in tarexit.save], []) if f in include_files]
+        if not os.path.exists('saved'):
+            os.makedirs('saved')
+        for f in saved:
+            shutil.copy2(f, 'saved/%s' % f)
+    # Actually execute the tar command.
     _exec("tar cjf %s %s%s" % (tarexit.tarfnm, ' '.join(include_files), ' --remove-files' if tarexit.remove_files else ''), print_command=True)
     # Touch the file to ensure that something is created (even zero bytes).
     _exec("touch %s" % tarexit.tarfnm)
