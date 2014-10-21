@@ -315,22 +315,23 @@ class QChem(object):
         # Treat custom basis and ECP.
         # Basis set can either be a string or a dictionary.
         # ECP can also be a string or a dictionary and it is keyed using the basis.
-        basisval = basdict.get(basis.lower(), basis)
-        if isinstance(basisval, dict):
-            basisname = 'gen'
-            basissect = sum([[e, basisval[e], '****'] for e in elems], [])
-        else:
-            basisname = basisval.lower()
-            basissect = None
-        ecp = ecpdict.get(basis.lower(), None)
-        ecpname = None
-        if ecp != None:
-            if isinstance(ecp, dict):
-                ecpname = 'gen'
-                ecpsect = sum([[e, ecp[e], '****'] for e in elems], [])
+        if basis != None:
+            basisval = basdict.get(basis.lower(), basis)
+            if isinstance(basisval, dict):
+                basisname = 'gen'
+                basissect = sum([[e, basisval[e], '****'] for e in elems], [])
             else:
-                ecpname = ecp.lower()
-                ecpsect = None
+                basisname = basisval.lower()
+                basissect = None
+            ecp = ecpdict.get(basis.lower(), None)
+            ecpname = None
+            if ecp != None:
+                if isinstance(ecp, dict):
+                    ecpname = 'gen'
+                    ecpsect = sum([[e, ecp[e], '****'] for e in elems], [])
+                else:
+                    ecpname = ecp.lower()
+                    ecpsect = None
         if 'qcrems' not in self.M.Data.keys():
             if method == None or basis == None or charge == None or mult == None:
                 raise RuntimeError('Must provide charge/mult/method/basis!')
