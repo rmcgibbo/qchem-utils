@@ -40,12 +40,11 @@ import os, sys, shutil, glob
 import traceback
 import time
 import numpy as np
-from molecule import Molecule
+from molecule import Molecule, Elements
 from utils import _exec
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
 
-# Note: On biox3 there are MPI problems.
 
 # Default Q-Chem input file to be used when QChem class is initialized
 # from a .xyz file.  Written mainly for HF and DFT calculations; note
@@ -193,6 +192,29 @@ tarexit.archive_dirs=False
 tarexit.remove_files=True
 tarexit.remove_dirs=True
 
+# Basis set combinations which may be provided as an argument to "basis".
+# Provides rudimentary basis set mixing functionality.  You may define
+# a mapping from element to basis set here.
+basdict = OrderedDict([('%s_lanl2dz' % bas, OrderedDict([(Elements[i], 'lanl2dz' if i > 10 else bas) for i in range(1, 94)])) for
+                       bas in ['3-21g', '3-21+g', '3-21g*', 
+                               '6-31g', '6-31g*', '6-31g(d)', '6-31g**', '6-31g(d,p)',
+                               '6-31+g', '6-31+g*', '6-31+g(d)', '6-31+g**', '6-31+g(d,p)',
+                               '6-31++g', '6-31++g*', '6-31++g(d)', '6-31++g**', '6-31++g(d,p)',
+                               '6-311g', '6-311g*', '6-311g(d)', '6-311g**', '6-311g(d,p)',
+                               '6-311+g', '6-311+g*', '6-311+g(d)', '6-311+g**', '6-311+g(d,p)',
+                               '6-311++g', '6-311++g*', '6-311++g(d)', '6-311++g**', '6-311++g(d,p)']])
+
+# In most cases, the ECP can be determined from the basis
+ecpdict = OrderedDict([('lanl2dz', 'lanl2dz')] + 
+                      [('%s_lanl2dz' % bas, 'lanl2dz') for
+                       bas in ['3-21g', '3-21+g', '3-21g*', 
+                               '6-31g', '6-31g*', '6-31g(d)', '6-31g**', '6-31g(d,p)',
+                               '6-31+g', '6-31+g*', '6-31+g(d)', '6-31+g**', '6-31+g(d,p)',
+                               '6-31++g', '6-31++g*', '6-31++g(d)', '6-31++g**', '6-31++g(d,p)',
+                               '6-311g', '6-311g*', '6-311g(d)', '6-311g**', '6-311g(d,p)',
+                               '6-311+g', '6-311+g*', '6-311+g(d)', '6-311+g**', '6-311+g(d,p)',
+                               '6-311++g', '6-311++g*', '6-311++g(d)', '6-311++g**', '6-311++g(d,p)']])
+
 class QChem(object):
     """
     Class for facilitating Q-Chem calculations.  I wrote this
@@ -287,12 +309,47 @@ class QChem(object):
         # Whether a Hessian calculation has been done.
         self.haveH = 0
         # Set Q-Chem calculation options ($rem variables).
+        elems = sorted(list(set(self.M.elem)))
+        elemsort = np.argsort(np.array([Elements.index(i) for i in elems]))
+        elems = [elems[i] for i in elemsort]
+        # Treat custom basis and ECP.
+        # Basis set can either be a string or a dictionary.
+        # ECP can also be a string or a dictionary and it is keyed using the basis.
+        basisval = basdict.get(basis.lower(), basis)
+        if isinstance(basisval, dict):
+            basisname = 'gen'
+            basissect = sum([[e, basisval[e], '****'] for e in elems], [])
+        else:
+            basisname = basisval.lower()
+            basissect = None
+        ecp = ecpdict.get(basis.lower(), None)
+        ecpname = None
+        if ecp != None:
+            if isinstance(ecp, dict):
+                ecpname = 'gen'
+                ecpsect = sum([[e, ecp[e], '****'] for e in elems], [])
+            else:
+                ecpname = ecp.lower()
+                ecpsect = None
         if 'qcrems' not in self.M.Data.keys():
             if method == None or basis == None or charge == None or mult == None:
                 raise RuntimeError('Must provide charge/mult/method/basis!')
-            # Write a temporary file and read it back in.
+            # Print a Q-Chem template file.
             with open('.qtemp.in','w') as f: print >> f, \
-                    qcrem_default.format(chg=charge, mult=mult, method=method, basis=basis)
+                    qcrem_default.format(chg=charge, mult=mult, method=method, basis=(basisname + '\necp                 %s' % (ecpname if ecp != None else '')))
+            # Print general basis and ECP sections to the Q-Chem template file.
+            if basisname == 'gen':
+                with open('.qtemp.in','a') as f:
+                    print >> f
+                    print >> f, '$basis'
+                    print >> f, '\n'.join(basissect)
+                    print >> f, '$end'
+            if ecpname == 'gen':
+                with open('.qtemp.in','a') as f:
+                    print >> f
+                    print >> f, '$ecp'
+                    print >> f, '\n'.join(ecpsect)
+                    print >> f, '$end'
             self.M.add_quantum('.qtemp.in')
         else:
             if charge != None:
@@ -302,7 +359,13 @@ class QChem(object):
             if method != None:
                 self.M.edit_qcrems({'method' : method})
             if basis != None:
-                self.M.edit_qcrems({'basis' : basis})
+                self.M.edit_qcrems({'basis' : basisname})
+                if basisname == 'gen':
+                    self.M.qctemplate['basis'] = basissect
+            if ecp != None:
+                self.M.edit_qcrems({'ecp' : ecpname})
+                if ecpname == 'gen':
+                    self.M.qctemplate['ecp'] = ecpsect
         # The current job type, which we can set using
         # different methods for job types.
         self.jobtype = 'sp'
