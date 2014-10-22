@@ -150,6 +150,10 @@ def tarexit(exitstat=0):
         os.remove(f)
     # Expand each term in "exclude" and remove from the list of files.
     excludes = sum([glob.glob(g) for g in tarexit.exclude], [])
+    # If the tar file exists, then extract / delete it.
+    if os.path.exists(tarexit.tarfnm):
+        _exec("tar xjf %s --skip-old-files" % tarexit.tarfnm, print_command=True)
+        os.remove(tarexit.tarfnm)
     # Expand each term in "include" and add them to the list of files.
     include_files = []
     for g in tarexit.include:
@@ -168,10 +172,6 @@ def tarexit(exitstat=0):
         for f in saved:
             shutil.copy2(f, 'saved/%s' % f)
     # Actually execute the tar command.
-    # If the tar file exists, then extract / delete it.
-    if os.path.exists(tarexit.tarfnm):
-        _exec("tar xjf %s" % tarexit.tarfnm, print_command=True)
-        _exec("rm -f %s" % tarexit.tarfnm, print_command=True)
     _exec("tar cjf %s %s%s" % (tarexit.tarfnm, ' '.join(include_files), ' --remove-files' if tarexit.remove_files else ''), print_command=True)
     # Touch the file to ensure that something is created (even zero bytes).
     _exec("touch %s" % tarexit.tarfnm)
@@ -214,6 +214,92 @@ ecpdict = OrderedDict([('lanl2dz', 'lanl2dz')] +
                                '6-311g', '6-311g*', '6-311g(d)', '6-311g**', '6-311g(d,p)',
                                '6-311+g', '6-311+g*', '6-311+g(d)', '6-311+g**', '6-311+g(d,p)',
                                '6-311++g', '6-311++g*', '6-311++g(d)', '6-311++g**', '6-311++g(d,p)']])
+
+def get_basis(basis, molecule=None):
+    """
+    Get the basis / ECP name and section data for a Q-Chem input file.
+
+    Parameters
+    ----------
+    basis : str
+        Name of a Q-Chem gaussian basis set or a custom basis as defined above
+    molecule : Molecule object
+        Required in case of a general basis (for looking up elements in the basis set dictionary)
+    
+    Returns
+    -------
+    basisname : str
+        Either the original basis name or "gen" for a general basis
+    basissect : None or list
+        A list of strings for the $basis section in case of a general basis
+    ecpname : None or str
+        None (for no ECP), the original ECP name, or "gen" for a general ECP
+    ecpname : None or list
+        A list of strings for the $ecp section in case of a general ECP
+    """
+    # Look up the basis set (string or dictionary).
+    basisval = basdict.get(basis.lower(), basis)
+    if molecule != None:
+        elems = sorted(list(set(molecule.elem)))
+        elemsort = np.argsort(np.array([Elements.index(i) for i in elems]))
+        elems = [elems[i] for i in elemsort]
+    elif isinstance(basisval, dict):
+        raise RuntimeError('Please pass a molecule object if using a general basis set')
+    basissect = None
+    if isinstance(basisval, dict):
+        basisname = 'gen'
+        basissect = sum([[e, basisval[e], '****'] for e in elems], [])
+    else:
+        basisname = basisval.lower()
+    # Look up the ECP (string, dictionary or None).
+    ecp = ecpdict.get(basis.lower(), None)
+    ecpname = None
+    ecpsect = None
+    if isinstance(ecp, dict):
+        ecpname = 'gen'
+        ecpsect = sum([[e, ecp[e], '****'] for e in elems], [])
+    elif isinstance(ecp, str):
+        ecpname = ecp.lower()
+    return basisname, basissect, ecpname, ecpsect
+
+def prepare_template(docstring, fout, chg, mult, method, basis, molecule=None):
+    """
+    Prepare a Q-Chem template file.
+
+    Parameters
+    ----------
+    docstring : str
+        A Python docstring with the fields {chg}, {mult}, {method} and {basis} defined.
+    fout : str
+        Name of the output file.
+    chg : int
+        Charge to print to the template file.
+    mult : int
+        Spin multiplicity.
+    method : str
+        Electronic structure method.
+    basis : str
+        Gaussian basis set.
+    molecule : Molecule object
+        molecule.elem provides the elements printed to file in the case of a general basis
+    """
+    basisname, basissect, ecpname, ecpsect = get_basis(basis, molecule)
+    # Write Q-Chem template file.
+    with open(fout,'w') as f: print >> f, \
+            qcrem_default.format(chg=chg, mult=mult, method=method, basis=(basisname + '%s' % (('\necp                 %s' % ecpname) if ecpname != None else '')))
+    # Print general basis and ECP sections to the Q-Chem template file.
+    if basisname == 'gen':
+        with open(fout,'a') as f:
+            print >> f
+            print >> f, '$basis'
+            print >> f, '\n'.join(basissect)
+            print >> f, '$end'
+    if ecpname == 'gen':
+        with open(fout,'a') as f:
+            print >> f
+            print >> f, '$ecp'
+            print >> f, '\n'.join(ecpsect)
+            print >> f, '$end'
 
 class QChem(object):
     """
@@ -309,48 +395,11 @@ class QChem(object):
         # Whether a Hessian calculation has been done.
         self.haveH = 0
         # Set Q-Chem calculation options ($rem variables).
-        elems = sorted(list(set(self.M.elem)))
-        elemsort = np.argsort(np.array([Elements.index(i) for i in elems]))
-        elems = [elems[i] for i in elemsort]
-        # Treat custom basis and ECP.
-        # Basis set can either be a string or a dictionary.
-        # ECP can also be a string or a dictionary and it is keyed using the basis.
-        if basis != None:
-            basisval = basdict.get(basis.lower(), basis)
-            if isinstance(basisval, dict):
-                basisname = 'gen'
-                basissect = sum([[e, basisval[e], '****'] for e in elems], [])
-            else:
-                basisname = basisval.lower()
-                basissect = None
-            ecp = ecpdict.get(basis.lower(), None)
-            ecpname = None
-            if ecp != None:
-                if isinstance(ecp, dict):
-                    ecpname = 'gen'
-                    ecpsect = sum([[e, ecp[e], '****'] for e in elems], [])
-                else:
-                    ecpname = ecp.lower()
-                    ecpsect = None
         if 'qcrems' not in self.M.Data.keys():
             if method == None or basis == None or charge == None or mult == None:
                 raise RuntimeError('Must provide charge/mult/method/basis!')
             # Print a Q-Chem template file.
-            with open('.qtemp.in','w') as f: print >> f, \
-                    qcrem_default.format(chg=charge, mult=mult, method=method, basis=(basisname + '%s' % (('\necp                 %s' % ecpname) if ecp != None else '')))
-            # Print general basis and ECP sections to the Q-Chem template file.
-            if basisname == 'gen':
-                with open('.qtemp.in','a') as f:
-                    print >> f
-                    print >> f, '$basis'
-                    print >> f, '\n'.join(basissect)
-                    print >> f, '$end'
-            if ecpname == 'gen':
-                with open('.qtemp.in','a') as f:
-                    print >> f
-                    print >> f, '$ecp'
-                    print >> f, '\n'.join(ecpsect)
-                    print >> f, '$end'
+            prepare_template(qcrem_default, '.qtemp.in', charge, mult, method, basis, molecule=self.M)
             self.M.add_quantum('.qtemp.in')
         else:
             if charge != None:
@@ -359,11 +408,15 @@ class QChem(object):
                 self.M.mult = mult
             if method != None:
                 self.M.edit_qcrems({'method' : method})
+            # Treat custom basis and ECP.
+            ecpname = None
+            ecpsect = None
             if basis != None:
+                basisname, basissect, ecpname, ecpsect = get_basis(basis, self.M)
                 self.M.edit_qcrems({'basis' : basisname})
                 if basisname == 'gen':
                     self.M.qctemplate['basis'] = basissect
-            if ecp != None:
+            if ecpname != None:
                 self.M.edit_qcrems({'ecp' : ecpname})
                 if ecpname == 'gen':
                     self.M.qctemplate['ecp'] = ecpsect
