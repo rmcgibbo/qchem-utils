@@ -34,14 +34,17 @@ a Molecule object.
 Also contains a number of functions to wrap around TS/IRC calculations and
 make the results easier to use.
 """
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
 
 
 import os, sys, shutil, glob
 import traceback
 import time
 import numpy as np
-from molecule import Molecule, Elements
-from utils import _exec
+from .molecule import Molecule, Elements
+from .utils import _exec
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
 
@@ -285,21 +288,23 @@ def prepare_template(docstring, fout, chg, mult, method, basis, molecule=None):
     """
     basisname, basissect, ecpname, ecpsect = get_basis(basis, molecule)
     # Write Q-Chem template file.
-    with open(fout,'w') as f: print >> f, \
-            qcrem_default.format(chg=chg, mult=mult, method=method, basis=(basisname + '%s' % (('\necp                 %s' % ecpname) if ecpname != None else '')))
+    with open(fout,'w') as f:
+        print(qcrem_default.format(chg=chg, mult=mult, method=method, basis=(
+                    basisname + '%s' % (('\necp                 %s' % ecpname) if ecpname != None else ''))), file=f)
+
     # Print general basis and ECP sections to the Q-Chem template file.
     if basisname == 'gen':
         with open(fout,'a') as f:
-            print >> f
-            print >> f, '$basis'
-            print >> f, '\n'.join(basissect)
-            print >> f, '$end'
+            print(file=f)
+            print('$basis', file=f)
+            print('\n'.join(basissect), file=f)
+            print('$end', file=f)
     if ecpname == 'gen':
         with open(fout,'a') as f:
-            print >> f
-            print >> f, '$ecp'
-            print >> f, '\n'.join(ecpsect)
-            print >> f, '$end'
+            print(file=f)
+            print('$ecp', file=f)
+            print('\n'.join(ecpsect), file=f)
+            print('$end', file=f)
 
 class QChem(object):
     """
@@ -533,9 +538,9 @@ class QChem(object):
         (outer wrapper functions should do this).
         """
         if debug:
-            print "Calling Q-Chem with jobtype", self.jobtype
+            print("Calling Q-Chem with jobtype", self.jobtype)
             for line in open(self.qcin).readlines():
-                print line,
+                print(line, end=' ')
 
         # Figure out whether to use OpenMP or MPI.
         mode = "openmp"
@@ -613,7 +618,7 @@ class QChem(object):
         # I've run into a lot of TCP socket errors and OpenMP segfaults on Blue Waters.
         for line in open(self.qcerr):
             if 'Unable to open a TCP socket for out-of-band communications' in line:
-                with open(self.qcerr, 'a') as f: print >> f, 'TCP socket failure :('
+                with open(self.qcerr, 'a') as f: print('TCP socket failure :(', file=f)
                 tarexit.include=['*']
                 tarexit(1)
         # Note that we do NOT copy qcdir to qcdsav here, because we don't know whether the calculation is good.
@@ -645,13 +650,13 @@ class QChem(object):
             self.coreguess = True
             self.remscf['scf_algorithm'] = 'diis'
         if attempt in [2, 5]:
-            print "RCA..",
+            print("RCA..", end=' ')
             self.readguess = False
             self.coreguess = False
             self.remscf['scf_algorithm'] = 'rca_diis'
             self.remscf['thresh_rca_switch'] = 4
         if attempt in [3, 6]:
-            print "GDM..",
+            print("GDM..", end=' ')
             self.readguess = True
             self.coreguess = True
             self.remscf['scf_algorithm'] = 'diis_gdm'
@@ -660,7 +665,7 @@ class QChem(object):
             self.remscf['scf_convergence'] = 8
         else:
             if attempt == 4:
-                print "Relax convergence criterion..",
+                print("Relax convergence criterion..", end=' ')
             self.remscf['scf_convergence'] = 6
         # Set SCF max number of cycles.
         if attempt > 1:
@@ -799,12 +804,12 @@ class QChem(object):
             if stab2:
                 self.stable = True
                 if self.nstab > 1:
-                    print "HF/KS stable %s" % (("at attempt %i" % self.nstab) if self.nstab > 1 else "")
+                    print("HF/KS stable %s" % (("at attempt %i" % self.nstab) if self.nstab > 1 else ""))
                 break
             else:
                 self.nstab += 1
             if self.nstab > maxstab:
-                print "Warning: Stability analysis could not find HF/KS stable state"
+                print("Warning: Stability analysis could not find HF/KS stable state")
                 break
 
     def force(self):
@@ -824,16 +829,16 @@ class QChem(object):
         """ Write vibrational data to an easy-to-use text file. """
         M = self.load_qcout()
         with open(fout, 'w') as f:
-            print >> f, vib_top
-            print >> f, M.na
-            print >> f, "Coordinates and vibrations calculated from %s" % self.qcout
+            print(vib_top, file=f)
+            print(M.na, file=f)
+            print("Coordinates and vibrations calculated from %s" % self.qcout, file=f)
             for e, i in zip(M.elem, M.xyzs[0]):
-                print >> f, "%2s % 8.3f % 8.3f % 8.3f" % (e, i[0], i[1], i[2])
+                print("%2s % 8.3f % 8.3f % 8.3f" % (e, i[0], i[1], i[2]), file=f)
             for frq, mode in zip(M.freqs, M.modes):
-                print >> f
-                print >> f, "%.4f" % frq
+                print(file=f)
+                print("%.4f" % frq, file=f)
                 for i in mode:
-                    print >> f, "% 8.3f % 8.3f % 8.3f" % (i[0], i[1], i[2])
+                    print("% 8.3f % 8.3f % 8.3f" % (i[0], i[1], i[2]), file=f)
 
     def opt(self):
         """
