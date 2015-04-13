@@ -470,14 +470,18 @@ class QChem(object):
         if isinstance(self.readsave, str):
             if not os.path.isdir(self.readsave):
                 raise RuntimeError('Tried to initialize Q-Chem reading from a save folder but does not exist')
-	    if self.readsave == self.qcdsav: pass
+            if self.readsave == self.qcdsav:
+                pass
             elif os.path.exists(self.qcdsav):
                 shutil.rmtree(self.qcdsav)
                 shutil.copytree(self.readsave, self.qcdsav)
-        elif isinstance(self.readsave, int) and self.readsave: pass
-        elif os.path.exists(self.qcdsav): shutil.rmtree(self.qcdsav)
+        elif isinstance(self.readsave, int) and self.readsave:
+            pass
+        elif os.path.exists(self.qcdsav):
+            shutil.rmtree(self.qcdsav)
         # Remove self.qcdir; it will be restored from self.qcdsav right before calling Q-Chem.
-        if os.path.exists(self.qcdir): shutil.rmtree(self.qcdir)
+        if os.path.exists(self.qcdir):
+            shutil.rmtree(self.qcdir)
 
     def write(self, *args, **kwargs):
         """ Write the Molecule object to a file. """
