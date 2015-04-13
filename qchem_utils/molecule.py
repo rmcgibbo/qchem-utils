@@ -1692,7 +1692,7 @@ class Molecule(object):
                                 ghost.append(True)
                             else:
                                 ghost.append(False)
-                            elem.append(re.sub('@', '', sline[0]))
+                            elem.append(int(re.sub('@', '', sline[0])))
                         xyz.append([float(i) for i in sline[1:4]])
                         if readsuf and len(sline) > 4:
                             whites = re.split('[^ ]+', line)
@@ -1709,10 +1709,11 @@ class Molecule(object):
                         SectionData.append(line.split('!')[0])
                     elif section == 'rem':
                         S = splitter.findall(line)
-                        if S[0] == '!':
-                            qcrem[''.join(S[0:3]).lower()] = ''.join(S[4:])
-                        else:
-                            qcrem[S[0].lower()] = ''.join(S[2:])
+                        if len(S) > 0:
+                            if S[0] == '!':
+                                qcrem[''.join(S[0:3]).lower()] = ''.join(S[4:])
+                            else:
+                                qcrem[S[0].lower()] = ''.join(S[2:])
                     else:
                         SectionData.append(line)
             elif re.match('^@+$', line) and reading_template:

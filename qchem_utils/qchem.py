@@ -39,14 +39,20 @@ from __future__ import absolute_import
 from __future__ import division
 
 
-import os, sys, shutil, glob
+import os
+import sys
+import shutil
+import glob
 import traceback
 import time
-import numpy as np
-from .molecule import Molecule, Elements
-from .utils import _exec
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
+
+import six
+import numpy as np
+
+from .molecule import Molecule, Elements
+from .utils import _exec
 
 
 # Default Q-Chem input file to be used when QChem class is initialized
@@ -243,8 +249,16 @@ def get_basis(basis, molecule=None):
     # Look up the basis set (string or dictionary).
     basisval = basdict.get(basis.lower(), basis)
     if molecule != None:
-        elems = sorted(list(set(molecule.elem)))
-        elemsort = np.argsort(np.array([Elements.index(i) for i in elems]))
+        elems = []
+        for e in sorted(list(set(molecule.elem))):
+            if isinstance(e, int):
+                ee = Elements[e]
+            elif isinstance(e, six.string_types):
+                ee = Elements.index(e)
+            else:
+                raise ValueError(e)
+            elems.append(ee)
+        elemsort = np.argsort(np.array(elems))
         elems = [elems[i] for i in elemsort]
     elif isinstance(basisval, dict):
         raise RuntimeError('Please pass a molecule object if using a general basis set')
