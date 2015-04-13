@@ -1,3 +1,7 @@
+from __future__ import print_function
+from __future__ import division
+from __future__ import absolute_import
+from six.moves import input
 #======================================================================#
 #|              Chemical file format conversion module                |#
 #|                                                                    |#
@@ -145,8 +149,7 @@ PeriodicTable = OrderedDict([('H', 1.0079), ('He', 4.0026),
 
 
 def getElement(mass):
-    return PeriodicTable.keys()[np.argmin([np.abs(m - mass) for m in PeriodicTable.values()])]
-
+    return list(PeriodicTable.keys())[np.argmin([np.abs(m - mass) for m in list(PeriodicTable.values())])]
 
 def elem_from_atomname(atomname):
     """ Given an atom name, attempt to get the element in most cases. """
@@ -356,7 +359,7 @@ def pvec(vec):
 def grouper(n, iterable):
     """ Groups a big long iterable into groups of ten or what have you. """
     args = [iter(iterable)] * n
-    return list([e for e in t if e != None] for t in itertools.izip_longest(*args))
+    return list([e for e in t if e != None] for t in itertools.zip_longest(*args))
 
 
 def even_list(totlen, splitsize):
@@ -367,7 +370,7 @@ def even_list(totlen, splitsize):
         joblens[i % splitsize] += 1
     jobnow = 0
     for i in range(splitsize):
-        subsets.append(range(jobnow, jobnow + joblens[i]))
+        subsets.append(list(range(jobnow, jobnow + joblens[i])))
         jobnow += joblens[i]
     return subsets
 
@@ -560,7 +563,7 @@ class Molecule(object):
                 Sum.Data[key] = self.Data[key]
             elif diff(self, other, key):
                 for i, j in zip(self.Data[key], other.Data[key]):
-                    print i, j, i == j
+                    print((i, j, i == j))
                 raise RuntimeError(
                     'The data member called %s is not the same for these two objects\n' % key)
             elif key in self.Data:
@@ -603,7 +606,7 @@ class Molecule(object):
                 pass
             elif diff(self, other, key):
                 for i, j in zip(self.Data[key], other.Data[key]):
-                    print i, j, i == j
+                    print((i, j, i == j))
                 raise RuntimeError(
                     'The data member called %s is not the same for these two objects\n' % key)
             # Information from the other class is added to this class (if said
@@ -778,7 +781,7 @@ class Molecule(object):
             'Fac': kwargs.get('Fac', 1.2),
             'read_bonds': False}
 
-        for i in set(self.Read_Tab.keys() + self.Write_Tab.keys()):
+        for i in set(list(self.Read_Tab.keys()) + list(self.Write_Tab.keys())):
             self.Funnel[i] = i
         # Data container.  All of the data is stored in here.
         self.Data = {}
@@ -847,7 +850,7 @@ class Molecule(object):
         if type(select) in [int, np.int64, np.int32]:
             select = [select]
         if select == None:
-            select = range(len(self))
+            select = list(range(len(self)))
         Answer = self.Write_Tab[self.Funnel[ftype.lower()]](select, **kwargs)
         # Any method that returns text will give us a list of lines, which we
         # then write to the file.
@@ -865,7 +868,7 @@ class Molecule(object):
                     os.unlink(fnm)
                 outfile = open(fnm, 'w')
             for line in Answer:
-                print >> outfile, line
+                print(line, file=outfile)
             outfile.close()
 
     def load_frames(self, fnm):
@@ -1291,7 +1294,7 @@ class Molecule(object):
                 thiselem = thiselem[0] + re.sub('[A-Z0-9]', '', thiselem[1:])
             elem.append(thiselem)
 
-        resname = [data.compounds.items()[0][0] for i in range(len(elem))]
+        resname = [list(data.compounds.items())[0][0] for i in range(len(elem))]
         resid = [1 for i in range(len(elem))]
 
         # Deprecated 'abonds' format.
@@ -2076,7 +2079,7 @@ class Molecule(object):
                     Answer['qm_energies'].append(0.0)
                     mkchg.append([0.0 for j in mkchg[-1]])
                     mkspn.append([0.0 for j in mkchg[-1]])
-            lens = [len(i) for i in Answer['qm_energies'], Answer['xyzs']]
+            lens = [len(i) for i in (Answer['qm_energies'], Answer['xyzs'])]
             if len(set(lens)) != 1:
                 raise RuntimeError(
                     'The number of energies and coordinates in %s are not the same : %s\n' % (fnm, str(lens)))
@@ -2339,7 +2342,7 @@ class Molecule(object):
 
     def require_resid(self):
         if 'resid' not in self.Data:
-            na_res = int(raw_input(
+            na_res = int(input(
                 "Enter how many atoms are in a residue, or zero as a single residue -> "))
             if na_res == 0:
                 self.resid = [1 for i in range(self.na)]
@@ -2348,7 +2351,7 @@ class Molecule(object):
 
     def require_resname(self):
         if 'resname' not in self.Data:
-            resname = raw_input(
+            resname = input(
                 "Enter a residue name (3-letter like 'SOL') -> ")
             self.resname = [resname for i in range(self.na)]
 
@@ -2399,7 +2402,7 @@ class Molecule(object):
                 "9 floats (triclinic lattice vectors v1(x) v2(y) v3(z) v1(y) v1(z) v2(x) v2(z) v3(x) v3(y) in Angstrom)\n")
             sys.stderr.write(
                 "Or: Name of a file containing one of these lines for each frame in the trajectory\n")
-            boxstr = raw_input("Box Vector Input: -> ")
+            boxstr = input("Box Vector Input: -> ")
             if os.path.exists(boxstr):
                 boxfile = open(boxstr).readlines()
                 if len(boxfile) != len(self):
